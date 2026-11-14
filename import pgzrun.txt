@@ -1,0 +1,356 @@
+import pgzrun
+import random
+
+# Jendela permainan
+cell = Actor('images/floor1/border')
+cell1 = Actor('images/floor1/concrete_tile1')
+cell2 = Actor("images/floor1/concrete_tile_corner_crack")
+cell3 = Actor("images/floor1/concrete_tile_crack")
+size_w = 15 # Lebar arena dalam kotak
+size_h = 12 # Tinggi arena dalam kotak
+WIDTH = cell.width * size_w
+HEIGHT = cell.height * size_h
+
+win = 0
+mode = "menu"  # Initial state set to main menu
+
+TITLE = "Limitless" # Judul jendela permainan
+FPS = 30 # Jumlah gambar per detik
+my_map = [[0, 0, 0, 0, 0, 0, 0, 0, 0,0,0,0,0,0,0], 
+          [0, 1, 1, 1, 1, 1, 1, 1, 1,2,3,2,3,1,0], 
+          [0, 1, 1, 2, 1, 3, 1, 1, 3,2,1,1,1,2,0], 
+          [0, 1, 1, 1, 2, 1, 1, 1, 2,1,1,3,2,3,0], 
+          [0, 1, 3, 2, 1, 1, 3, 1, 3,2,1,2,2,2,0], 
+          [0, 1, 1, 1, 1, 3, 1, 1, 1,2,2,1,3,3,0], 
+          [0, 1, 1, 3, 1, 1, 2, 1, 2,1,3,2,1,2,0], 
+          [0, 1, 1, 1, 1, 1, 1, 1, 1,1,1,1,1,1,0], 
+          [0, 1, 3, 2, 2, 2, 1, 2, 1,1,3,2,1,2,0],
+          [0, 1, 1, 1, 1, 3, 1, 1, 1,2,2,1,3,3,0], 
+          [0, 0, 0, 0, 0, 0, 0, 0, 0,0,0,0,0,0,0],
+          [-1, -1, -1, -1, -1, -1, -1, -1, -1,-1,-1,-1,-1,-1,-1]]
+
+# Gojo Animation Frames
+walk_right_frames = ['images/gojo_sprites/walk/walk_right_1',
+                     'images/gojo_sprites/walk/walk_right_2', 
+                     'images/gojo_sprites/walk/walk_right_3',
+                     'images/gojo_sprites/walk/walk_right_4',
+                     'images/gojo_sprites/walk/walk_right_5',
+                     'images/gojo_sprites/walk/walk_right_6',
+                     'images/gojo_sprites/walk/walk_right_7',
+                     'images/gojo_sprites/walk/walk_right_8']
+
+walk_left_frames = ['images/gojo_sprites/walk/walk_left_1',
+                    'images/gojo_sprites/walk/walk_left_2', 
+                    'images/gojo_sprites/walk/walk_left_3',
+                    'images/gojo_sprites/walk/walk_left_4',
+                    'images/gojo_sprites/walk/walk_left_5',
+                    'images/gojo_sprites/walk/walk_left_6',
+                    'images/gojo_sprites/walk/walk_left_7',
+                    'images/gojo_sprites/walk/walk_left_8']
+
+punch_left_frames = ['images/gojo_sprites/punch/punch_left1',
+                     'images/gojo_sprites/punch/punch_left2',
+                     'images/gojo_sprites/punch/punch_left3',
+                     'images/gojo_sprites/punch/punch_left4',
+                     'images/gojo_sprites/punch/punch_left5',
+                     'images/gojo_sprites/punch/punch_left6']
+
+punch_right_frames = ['images/gojo_sprites/punch/punch_1',
+                      'images/gojo_sprites/punch/punch_2',
+                      'images/gojo_sprites/punch/punch_3',
+                      'images/gojo_sprites/punch/punch_4',
+                      'images/gojo_sprites/punch/punch_5',
+                      'images/gojo_sprites/punch/punch_6']
+
+blue = ['images/gojo_sprites/blue/blue_1',
+        'images/gojo_sprites/blue/blue_2',
+        'images/gojo_sprites/blue/blue_3',
+        'images/gojo_sprites/blue/blue_4']
+
+red = ['images/gojo_sprites/red/red_1',
+       'images/gojo_sprites/red/red_2',
+       'images/gojo_sprites/red/red_3',
+       'images/gojo_sprites/red/red_4',
+       'images/gojo_sprites/red/red_5',
+       'images/gojo_sprites/red/red_6']
+
+# Animation & Movement State Variables
+current_frame = 0
+frame_timer = 0.0
+walk_frame_duration = 0.15
+attack_frame_duration = 0.1
+facing = 'right'
+
+active_animation = None
+is_attacking = False
+is_ranged = False
+projectile_actor = None
+
+# Tokoh utama
+char = Actor('images/gojo_sprites/stand/stand_right')
+
+# Game objects
+enemies = []
+extra_hp = []
+extra_attack = []
+
+# Define interactive button Actors
+new_game_btn = Actor('images/turn_based/buttons/new_game_btn')
+new_game_btn.center = (WIDTH // 2, HEIGHT - 80)
+
+return_menu_btn = Actor('images/turn_based/buttons/retomenu_btn')
+return_menu_btn.center = (WIDTH // 2, HEIGHT - 80)
+
+def reset_game():
+    global enemies, extra_hp, extra_attack, mode, win, is_attacking, projectile_actor
+    mode = "game"
+    win = 0
+    is_attacking = False
+    projectile_actor = None
+    
+    # Reset Gojo
+    char.image = 'images/gojo_sprites/stand/stand_right'
+    char.top = cell.height
+    char.left = cell.width
+    char.health = 100
+    char.attack = 5
+
+    # Reset lists
+    extra_hp.clear()
+    extra_attack.clear()
+    enemies.clear()
+
+    # Re-spawn enemies
+    while len(enemies) < 5:
+        x = random.randint(3, 12) * cell.width
+        y = random.randint(3, 8) * cell.height
+        enemy = Actor("images/curses/curse11", topleft=(x, y))
+        if enemy.collidelist(enemies) == -1:
+            enemy.health = random.randint(10, 20)
+            enemy.attack = random.randint(5, 10)
+            enemy.bonus = random.randint(0, 2)
+            enemies.append(enemy)
+
+# Initial setup
+reset_game()
+mode = "menu"  # Force start on main menu
+
+# Menggambar peta
+def map_draw():
+    for i in range(len(my_map)):
+        for j in range(len(my_map[0])):
+            if my_map[i][j] == 0:
+                cell.left = cell.width*j
+                cell.top = cell.height*i
+                cell.draw()
+            elif my_map[i][j] == 1:
+                cell1.left = cell.width*j
+                cell1.top = cell.height*i
+                cell1.draw()
+            elif my_map[i][j] == 2:
+                cell2.left = cell.width*j
+                cell2.top = cell.height*i
+                cell2.draw()  
+            elif my_map[i][j] == 3:
+                cell3.left = cell.width*j
+                cell3.top = cell.height*i
+                cell3.draw() 
+
+# Menggambar layar
+def draw():
+    if mode == "menu":
+        screen.blit('main_menu', (0, 0))
+        new_game_btn.draw()
+
+    elif mode == 'game':
+        screen.fill("#2f3542")
+        map_draw()
+        char.draw()
+        
+        # Render Projectile Animation if ranged attack is active
+        if is_attacking and is_ranged and projectile_actor:
+            projectile_actor.draw()
+
+        screen.draw.text("HP:", center=(25, 355), color='white', fontsize=20)
+        screen.draw.text(str(char.health), center=(75, 355), color='white', fontsize=20)
+        screen.draw.text("AP:", center=(375, 355), color='white', fontsize=20)
+        screen.draw.text(str(char.attack), center=(425, 355), color='white', fontsize=20)
+        
+        for enemy in enemies:
+            enemy.draw()
+            
+        for item in extra_hp:
+            item.draw()
+            
+        for item in extra_attack:
+            item.draw()
+
+    elif mode == "end":
+        screen.fill("#2f3542")
+        if win == 1:
+            screen.blit('victory', (0, 0))
+            return_menu_btn.draw()
+        else:
+            screen.blit('images/backgrounds/defeat', (0, 0))
+
+# Logika menang atau kalah
+def victory():
+    global mode, win
+    if len(enemies) == 0 and char.health > 0 and mode == 'game':
+        mode = 'end'
+        win = 1
+
+    if char.health <= 0 and mode == 'game':
+        mode = 'end'
+        win = -1
+
+# Mouse click handling for GUI buttons
+def on_mouse_down(pos):
+    global mode
+    if mode == "menu":
+        if new_game_btn.collidepoint(pos):
+            reset_game()
+    elif mode == "end":
+        if return_menu_btn.collidepoint(pos):
+            mode = "menu"
+
+# Update loop
+def update(dt):
+    global is_attacking, current_frame, frame_timer, facing, projectile_actor
+
+    if mode == 'game':
+        # Overworld Item Pickups (Iterating backward safely)
+        for i in range(len(extra_hp) - 1, -1, -1):
+            if char.colliderect(extra_hp[i]):
+                char.health += 5
+                extra_hp.pop(i)
+
+        for i in range(len(extra_attack) - 1, -1, -1):
+            if char.colliderect(extra_attack[i]):
+                char.attack += 2
+                extra_attack.pop(i)
+
+        victory()
+
+        # Handle Active Attack Animations
+        if is_attacking:
+            frame_timer += dt
+            if frame_timer >= attack_frame_duration:
+                frame_timer -= attack_frame_duration
+                current_frame += 1
+
+                if current_frame >= len(active_animation):
+                    is_attacking = False
+                    projectile_actor = None
+                    current_frame = 0
+                    if facing == 'right':
+                        char.image = 'images/gojo_sprites/stand/stand_right'
+                    else:
+                        char.image = 'images/gojo_sprites/stand/stand_left'
+                else:
+                    if is_ranged and projectile_actor:
+                        projectile_actor.image = active_animation[current_frame]
+                    else:
+                        char.image = active_animation[current_frame]
+
+        # Movement controls (Disabled while performing an attack)
+        elif keyboard.right and char.x + cell.width < WIDTH - cell.width:
+            facing = 'right'
+            char.x += 0.5 * cell.width
+
+            frame_timer += dt
+            if frame_timer >= walk_frame_duration:
+                frame_timer -= walk_frame_duration
+                current_frame = (current_frame + 1) % len(walk_right_frames)
+                char.image = walk_right_frames[current_frame]
+
+        elif keyboard.left and char.x - cell.width > cell.width:
+            facing = 'left'
+            char.x -= 0.5 * cell.width
+            
+            frame_timer += dt
+            if frame_timer >= walk_frame_duration:
+                frame_timer -= walk_frame_duration
+                current_frame = (current_frame + 1) % len(walk_left_frames)
+                char.image = walk_left_frames[current_frame]
+
+        elif keyboard.down and char.y + cell.height < HEIGHT - cell.height * 2:
+            facing = 'down'
+            char.y += cell.height
+
+        elif keyboard.up and char.y - cell.height > cell.height:
+            facing = 'up'
+            char.y -= cell.height
+
+# Key Handling for Attacks
+def on_key_down(key):
+    global is_attacking, current_frame, frame_timer, active_animation, facing, is_ranged, projectile_actor
+
+    if not is_attacking and mode == 'game':
+        attack_type = None
+        damage_multiplier = 1.0
+        is_ranged = False
+
+        # Spacebar -> Normal Melee Punch
+        if key == keys.SPACE:
+            attack_type = punch_right_frames if facing == 'right' else punch_left_frames
+            damage_multiplier = 1.0
+            hitbox = char.get_rect()
+        
+        # Q Key -> Red Attack (2-Tile Range)
+        elif key == keys.Q:
+            attack_type = red
+            damage_multiplier = 2.0
+            is_ranged = True
+            
+        # E Key -> Blue Attack (2-Tile Range)
+        elif key == keys.E:
+            attack_type = blue
+            damage_multiplier = 1.5
+            is_ranged = True
+
+        if attack_type:
+            is_attacking = True
+            active_animation = attack_type
+            current_frame = 0
+            frame_timer = 0.0
+
+            # Compute hitboxes and projectile positions for ranged attacks
+            if is_ranged:
+                target_x = char.x
+                target_y = char.y
+                range_distance = cell.width * 2  # 2 tiles distance
+
+                if facing == 'right':
+                    target_x += range_distance
+                elif facing == 'left':
+                    target_x -= range_distance
+                elif facing == 'down':
+                    target_y += cell.height * 2
+                elif facing == 'up':
+                    target_y -= cell.height * 2
+
+                # Spawn projectile visual at the target location
+                projectile_actor = Actor(attack_type[0], center=(target_x, target_y))
+                hitbox = projectile_actor.get_rect()
+            
+            # Deal damage to enemies in the target area
+            for enemy_index in range(len(enemies) - 1, -1, -1):
+                enemy = enemies[enemy_index]
+                if hitbox.colliderect(enemy) and enemy.health > 0:
+                    enemy.health -= char.attack * damage_multiplier
+                    
+                    if enemy.health > 0 and char.colliderect(enemy):
+                        char.health -= enemy.attack
+                    elif enemy.health <= 0:
+                        if enemy.bonus == 1:
+                            heart = Actor('images/bonus/heart')
+                            heart.pos = enemy.pos
+                            extra_hp.append(heart)
+                        elif enemy.bonus == 2:
+                            sword = Actor('images/bonus/cursed_energy')
+                            sword.pos = enemy.pos
+                            extra_attack.append(sword)
+                        enemies.pop(enemy_index)
+
+pgzrun.go()
